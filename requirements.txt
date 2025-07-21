@@ -1,0 +1,27 @@
+# Core data analysis and scientific computing
+numpy
+pandas
+scipy
+
+# Financial analysis
+# yfinance
+# quantstats
+
+# Data visualization
+matplotlib
+seaborn
+# plotly
+
+# Machine learning
+# scikit-learn
+# 
+# Jupyter notebooks
+# jupyter
+
+# Testing
+pytest
+pytest-cov
+
+# Code quality
+black
+flake8
