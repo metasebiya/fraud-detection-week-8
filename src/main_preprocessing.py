@@ -73,7 +73,18 @@ def main():
     data_transformer = DataTransformer()
 
     # --- 1. Load Data ---
-    fraud_data, ip_to_country, creditcard_data = data_loader.load_data()
+    dataset_paths = {
+        'fraud_data': '../data/processed/fraud_data_cleaned.csv',  # Adjust paths if needed for your local setup
+        'ip_to_country': '../data/processed/ip_to_country_cleaned.csv',
+        'creditcard_data': '../data/processed/creditcard_data_cleaned.csv'
+    }
+    # Load the data using the new method
+    loaded_dfs = data_loader.load_data(dataset_paths)
+
+    # Access the loaded DataFrames from the dictionary
+    fraud_data = loaded_dfs.get('fraud_data')
+    ip_to_country = loaded_dfs.get('ip_to_country')
+    creditcard_data = loaded_dfs.get('creditcard_data')
 
     if fraud_data is None or ip_to_country is None or creditcard_data is None:
         print("Exiting due to data loading errors.")
