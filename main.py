@@ -1,12 +1,9 @@
-# main.py
-
+from src.config.config import CONFIG
 from src.pipeline.pipeline import FraudDetectionPipeline
-from config.config import CONFIG  # Load your config dictionary
 
 def main():
-    pipeline = FraudDetectionPipeline(config=CONFIG)
+    pipeline = FraudDetectionPipeline()
     results = pipeline.orchestrated_pipeline()
-    print("✅ Pipeline completed. Results:")
     print(results)
 
 if __name__ == "__main__":
