@@ -1,23 +1,18 @@
-# Base image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY . /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+COPY . .
 
-# Expose port (Streamlit uses 8501, FastAPI uses 8000)
-EXPOSE 8501
+# Copy the trained model into the container
+COPY artifacts/model.joblib /app/model.joblib
 
-# Default command (change to uvicorn for FastAPI)
-CMD ["streamlit", "run", "dashboard.py"]
+ENV MODEL_PATH=/app/model.joblib
+
+EXPOSE 8000
+CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
