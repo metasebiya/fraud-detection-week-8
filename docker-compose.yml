@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    networks:
+      - fraudnet
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    env_file: .env
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - fraudnet
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    env_file: .env
+    depends_on:
+      - api
+    networks:
+      - fraudnet
+    # Optional: mount local data folder instead of copying into image
+    volumes:
+      - ./data:/app/data
+    command: >
+      sh -c "python -m src.pipeline.pipeline"
+
+networks:
+  fraudnet:
+    driver: bridge
