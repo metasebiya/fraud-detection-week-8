@@ -79,7 +79,7 @@ docker run -it --rm fraud-detection-pipeline
 ### Local
 
 ```bash
-python main.py
+python app.py
 ```
 
 ### Docker
