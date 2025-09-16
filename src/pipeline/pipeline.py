@@ -20,7 +20,6 @@ from src.config.config import get_loggable_params, CONFIG
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Build plots directory from config
 PLOTS_DIR = Path(CONFIG["artifacts_dir"]) / "plots"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -42,21 +41,54 @@ class FraudDetectionPipeline:
     def process_data(self):
         logger.info("🚀 Starting data processing...")
         processed = self.processor.run_pipeline(self.config)
+
+        # Debug mode: sample data safely
+        if self.config.get("debug_mode"):
+            frac = self.config.get("debug_sample_frac", 0.05)
+            logger.warning(f"⚡ DEBUG MODE ON — sampling {frac*100}% of data")
+            for dataset_key, dataset_dict in processed.items():
+                for split in ["train", "test"]:
+                    X_key = f"X_{split}_{dataset_key}_preprocessed"
+                    y_key = f"y_{split}_{dataset_key}"
+                    if X_key in dataset_dict and y_key in dataset_dict:
+                        X_df = dataset_dict[X_key]
+                        y_df = dataset_dict[y_key]
+                        sample_idx = np.random.choice(
+                            len(X_df),
+                            size=max(1, int(len(X_df) * frac)),
+                            replace=False
+                        )
+                        processed[dataset_key][X_key] = X_df[sample_idx]
+                        processed[dataset_key][y_key] = y_df[sample_idx]
+                    else:
+                        logger.debug(f"Skipping sampling for {dataset_key} {split} — keys not found.")
+
         if hasattr(self.processor, "last_plot") and self.processor.last_plot:
             self._save_and_log_plot(self.processor.last_plot, "data_processing_overview.png")
+
         return processed
 
     @task
     def train_models(self, processed):
         logger.info("📦 Training models...")
+        if self.config.get("debug_mode") and hasattr(self.trainer, "set_debug_mode"):
+            logger.warning("⚡ DEBUG MODE ON — reducing hyperparameter search space")
+            self.trainer.set_debug_mode()
+
         results, models, model_dataset_map, _ = self.trainer.run_all_models(processed)
+
         if hasattr(self.trainer, "plots"):
             for name, fig in self.trainer.plots.items():
                 self._save_and_log_plot(fig, f"training_{name}.png")
+
         return results, models, model_dataset_map
 
     @task
     def explain_and_log(self, processed, models, model_dataset_map):
+        if self.config.get("debug_mode"):
+            logger.warning("⚡ DEBUG MODE ON — skipping SHAP explainability")
+            return
+
         logger.info("📊 Generating model explanations...")
         for model_key, model in models.items():
             dataset_key = model_dataset_map[model_key]
@@ -114,20 +146,16 @@ class FraudDetectionPipeline:
         best_model_key = max(results, key=lambda m: results[m]["f1_score"])
         best_model = models[best_model_key]
 
-        # Save locally in artifacts dir
         local_model_path = Path(self.config["artifacts_dir"]) / "model.joblib"
         local_model_path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(best_model, local_model_path)
         logger.info(f"💾 Saved best model locally at {local_model_path}")
 
-        # Log to MLflow for tracking
-        artifact_path = "model"
-        mlflow.sklearn.log_model(best_model, artifact_path=artifact_path)
-        run_id = mlflow.active_run().info.run_id
-        model_uri = f"runs:/{run_id}/{artifact_path}"
-        logger.info(f"✅ Logged model to MLflow at {model_uri}")
+        mlflow.log_artifact(str(local_model_path), artifact_path="model")
+        logger.info("📦 Model logged to MLflow as a generic artifact.")
 
-        # Write pointer file
+        run_id = mlflow.active_run().info.run_id
+        model_uri = f"runs:/{run_id}/model/model.joblib"
         pointer = {
             "model_key": best_model_key,
             "run_id": run_id,
