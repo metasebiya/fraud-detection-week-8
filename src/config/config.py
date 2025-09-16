@@ -63,8 +63,9 @@ CONFIG = {
     #Model Name
     "model_name": require_env("MODEL_NAME", "fraud-detection-model"),
 
-    #Hugging Face
-    "hf_repo_id": require_env("HF_REPO_ID"),  # e.g., "username/fraud-detection-model"
+    #Debug Mode
+    "debug_mode": True,  # Set to False for full runs
+    "debug_sample_frac": 0.05,  # 5% of data
 
     # Output directory
     "output_dir": require_env("OUTPUT_DIR", "results"),
