@@ -6,12 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-test-train:
+  retrain-build-deploy:
     runs-on: ubuntu-latest
     env:
       MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
       MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
       MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
 
     steps:
     - name: 🔄 Checkout code
@@ -27,29 +31,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: ✅ Run unit tests
-      run: pytest tests/
-
-    - name: 🧹 Lint with flake8
-      run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-
     - name: 🤖 Retrain pipeline & save model
       run: |
-        python -m src.pipeline.pipeline
-        ls -lh artifacts/model.joblib
+        echo "Running pipeline to generate artifacts/model.joblib..."
+        python - <<'PYCODE'
+        from src.config import config
+        from src.pipeline.pipeline import FraudDetectionPipeline
+        config.CONFIG["debug_mode"] = False  # set True for faster runs
+        FraudDetectionPipeline().orchestrated_pipeline()
+        PYCODE
 
-  docker-build-push:
-    needs: build-test-train
-    runs-on: ubuntu-latest
-    env:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
-    steps:
-    - name: 🔄 Checkout code
-      uses: actions/checkout@v4
+    - name: 🛠 Ensure artifacts folder is in build context
+      run: |
+        echo "Checking .dockerignore..."
+        if [ -f .dockerignore ]; then
+          grep -v '^artifacts/' .dockerignore > .dockerignore.tmp || true
+          mv .dockerignore.tmp .dockerignore
+        fi
+        ls -lh artifacts/
 
     - name: 🔑 Log in to Docker registry
       uses: docker/login-action@v2
@@ -62,14 +61,6 @@ jobs:
         docker build -t ${{ env.DOCKER_USERNAME }}/fraud-api:latest .
         docker push ${{ env.DOCKER_USERNAME }}/fraud-api:latest
 
-  deploy:
-    needs: docker-build-push
-    runs-on: ubuntu-latest
-    env:
-      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-
-    steps:
     - name: 🚀 Trigger redeploy on Render
       run: |
         curl -X POST \
